@@ -149,10 +149,10 @@ public class PSZestCLI implements Runnable{
             // Load the guidance
             String title = this.testClassName+"#"+this.testMethodName;
             Random rnd = det ? new Random(0) : new Random(); // TODO: Make seed configurable
-            PSZestGuidance guidance =
+            ZestGuidance guidance =
                 seedFiles.length > 0 ?
-                new PSZestGuidance(title, duration, trials, this.outputDirectory, seedFiles, rnd) :
-                new PSZestGuidance(title, duration, trials, this.outputDirectory, inputDirectory, rnd);
+                new ZestGuidance(title, duration, trials, this.outputDirectory, seedFiles, rnd) :
+                new ZestGuidance(title, duration, trials, this.outputDirectory, inputDirectory, rnd);
             guidance.setBlind(blindFuzzing);
             // Run the Junit test
             Result res = GuidedFuzzing.run(testClassName, testMethodName, loader, guidance, System.out);

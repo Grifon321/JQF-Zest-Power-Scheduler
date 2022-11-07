@@ -62,14 +62,14 @@ public class PSZestDriver {
         try {
             // Load the guidance
             String title = testClassName+"#"+testMethodName;
-            PSZestGuidance guidance = null;
+            ZestGuidance guidance = null;
 
             if (seedFiles == null) {
-                guidance = new PSZestGuidance(title, null, outputDirectory);
+                guidance = new ZestGuidance(title, null, outputDirectory);
             } else if (seedFiles.length == 1 && seedFiles[0].isDirectory()) {
-                guidance = new PSZestGuidance(title, null, outputDirectory, seedFiles[0]);
+                guidance = new ZestGuidance(title, null, outputDirectory, seedFiles[0]);
             } else {
-                guidance = new PSZestGuidance(title, null, outputDirectory, seedFiles);
+                guidance = new ZestGuidance(title, null, outputDirectory, seedFiles);
             }
 
 

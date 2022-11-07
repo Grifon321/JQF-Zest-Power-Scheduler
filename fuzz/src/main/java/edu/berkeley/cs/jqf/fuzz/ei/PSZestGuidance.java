@@ -120,15 +120,6 @@ public class PSZestGuidance implements Guidance {
     /** Set of saved inputs to fuzz. */
     protected ArrayList<Input> savedInputs = new ArrayList<>();
 
-    /** Standard energy of each input */
-    protected int STANDARD_ENERGY = 10; // ADDED
-
-    /** Ticket #, which is shown in console */
-    protected int ticket = 0;
-
-    /** Global variable to trach cycles */
-    protected int global_var_for_cycles = 0;
-
     /** Queue of seeds to fuzz. */
     protected Deque<Input> seedInputs = new ArrayDeque<>();
 
@@ -511,7 +502,6 @@ public class PSZestGuidance implements Guidance {
             } else if (!QUIET_MODE) {
                 console.printf("\033[2J");
                 console.printf("\033[H");
-                console.printf("This is the guidance under test \n");
                 console.printf(this.getTitle() + "\n");
                 if (this.testName != null) {
                     console.printf("Test name:            %s\n", this.testName);
@@ -528,13 +518,10 @@ public class PSZestGuidance implements Guidance {
                 console.printf("Number of executions: %,d (%s)\n", numTrials,
                                maxTrials == Long.MAX_VALUE ? "no trial limit" : ("max " + maxTrials));
                 console.printf("Valid inputs:         %,d (%.2f%%)\n", numValid, numValid * 100.0 / numTrials);
-                //console.printf("Cycles completed:     %d\n", cyclesCompleted);
-                console.printf("Ticket #:     %d\n", ticket); 
-                console.printf("currentParentInputIdx:     %d\n", currentParentInputIdx);
+                console.printf("Cycles completed:     %d\n", cyclesCompleted);
                 console.printf("Unique failures:      %,d\n", uniqueFailures.size());
-                console.printf("Queue size:           %,d\n", savedInputs.size());
-                //console.printf("Queue size:           %,d (%,d favored last cycle)\n", savedInputs.size(), numFavoredLastCycle);
-                //console.printf("Current parent input: %s\n", currentParentInputDesc);
+                console.printf("Queue size:           %,d (%,d favored last cycle)\n", savedInputs.size(), numFavoredLastCycle);
+                console.printf("Current parent input: %s\n", currentParentInputDesc);
                 console.printf("Execution speed:      %,d/sec now | %,d/sec overall\n", intervalExecsPerSec, execsPerSec);
                 console.printf("Total coverage:       %,d branches (%.2f%% of map)\n", nonZeroCount, nonZeroFraction);
                 console.printf("Valid coverage:       %,d branches (%.2f%% of map)\n", nonZeroValidCount, nonZeroValidFraction);
@@ -684,42 +671,21 @@ public class PSZestGuidance implements Guidance {
                 // infoLog("Spawning new input from thin air");
                 currentInput = createFreshInput();
             } else {
-                /** Rewritten code for lottery scheduling */
-
-                /** Regular behavior, fuzz the input the same amount of times as ZEST */
-                int targetNumChildren = getTargetChildrenForParent(savedInputs.get(currentParentInputIdx));
+                // The number of children to produce is determined by how much of the coverage
+                // pool this parent input hits
+                Input currentParentInput = savedInputs.get(currentParentInputIdx);
+                int targetNumChildren = getTargetChildrenForParent(currentParentInput);
                 if (numChildrenGeneratedForCurrentParentInput >= targetNumChildren) {
-                
-                /** Custom behavior, fuzz only once */
-                //if (numChildrenGeneratedForCurrentParentInput >= 1) {
-                    int total_tickets = 0;
-                    for (int i = 0; i < savedInputs.size(); i++)
-                        total_tickets += savedInputs.get(i).energy;
-                            
-                    Random ticket_generator = new Random();
-                    
-                    // general logic
-                    //int ticket = ticket_generator.nextInt(total_tickets);
-                    // global to debug in console
-                    ticket = ticket_generator.nextInt(total_tickets);
+                    // Select the next saved input to fuzz
+                    currentParentInputIdx = (currentParentInputIdx + 1) % savedInputs.size();
 
-                    //global_var_for_cycles = (global_var_for_cycles + 1) % energy.size();
-                    //if (global_var_for_cycles == 0)
-                    //    completeCycle();
-                    
-                    int ticket_temp = 0;
-                    for (int i = 0; i < savedInputs.size(); i++) {
-                        //ticket_temp += energy.get(i);
-                        ticket_temp += savedInputs.get(i).energy;
-                        if (ticket_temp >= ticket) {
-                            currentParentInputIdx = i;
-                            break;
-                        }
+                    // Count cycles
+                    if (currentParentInputIdx == 0) {
+                        completeCycle();
                     }
-                    
+
                     numChildrenGeneratedForCurrentParentInput = 0;
                 }
-                                
                 Input parent = savedInputs.get(currentParentInputIdx);
 
                 // Fuzz it to get a new input
@@ -986,7 +952,6 @@ public class PSZestGuidance implements Guidance {
 
     }
 
-    
     /* Saves an interesting input to the queue. */
     protected void saveCurrentInput(IntHashSet responsibilities, String why) throws IOException {
 
@@ -1005,10 +970,6 @@ public class PSZestGuidance implements Guidance {
 
         // Second, save to queue
         savedInputs.add(currentInput);
-        assignStandardEnergy(currentInput);
-        // for testing purposes - delete afterwards
-        //if (currentInput.isFavored())
-        //    energy.set(newInputIdx,  STANDARD_ENERGY * 2);
 
         // Third, store basic book-keeping data
         currentInput.id = newInputIdx;
@@ -1113,10 +1074,6 @@ public class PSZestGuidance implements Guidance {
         return sb.toString();
     }
 
-    protected void assignStandardEnergy(Input input) {
-        input.energy = STANDARD_ENERGY;
-    }
-
     /**
      * A candidate or saved test input that maps objects of type K to bytes.
      */
@@ -1143,14 +1100,6 @@ public class PSZestGuidance implements Guidance {
          * operations.</p>
          */
         String desc;
-
-        /**
-        * Energy value of the input.
-        *
-        * <p>This field is initialized when saving input
-        * and used for lottery ticket sheduling. <p>
-         */
-        int energy = 0;
 
         /**
          * The run coverage for this input, if the input is saved.
