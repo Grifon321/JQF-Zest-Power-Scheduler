@@ -120,6 +120,18 @@ public class ZestGuidance implements Guidance {
     /** Set of saved inputs to fuzz. */
     protected ArrayList<Input> savedInputs = new ArrayList<>();
 
+    /** Array containing energy of each saved input */
+	protected ArrayList<Integer> energy = new ArrayList<>(); // ADDED
+
+    /** Standard energy of each input */
+    protected int STANDARD_ENERGY = 10; // ADDED
+
+    /** Ticket #, which is shown in console */
+    protected int ticket = 0;
+
+    /** Global variable to trach cycles */
+    protected int global_var_for_cycles = 0;
+
     /** Queue of seeds to fuzz. */
     protected Deque<Input> seedInputs = new ArrayDeque<>();
 
@@ -467,6 +479,7 @@ public class ZestGuidance implements Guidance {
 
     // Call only if console exists
     protected void displayStats(boolean force) {
+        
         Date now = new Date();
         long intervalMilliseconds = now.getTime() - lastRefreshTime.getTime();
         if (intervalMilliseconds < STATS_REFRESH_TIME_PERIOD && !force) {
@@ -495,7 +508,7 @@ public class ZestGuidance implements Guidance {
         double nonZeroFraction = nonZeroCount * 100.0 / totalCoverage.size();
         int nonZeroValidCount = validCoverage.getNonZeroCount();
         double nonZeroValidFraction = nonZeroValidCount * 100.0 / validCoverage.size();
-
+        /*
         if (console != null) {
             if (LIBFUZZER_COMPAT_OUTPUT) {
                 console.printf("#%,d\tNEW\tcov: %,d exec/s: %,d L: %,d\n", numTrials, nonZeroValidCount, intervalExecsPerSec, currentInput.size());
@@ -519,6 +532,7 @@ public class ZestGuidance implements Guidance {
                                maxTrials == Long.MAX_VALUE ? "no trial limit" : ("max " + maxTrials));
                 console.printf("Valid inputs:         %,d (%.2f%%)\n", numValid, numValid * 100.0 / numTrials);
                 console.printf("Cycles completed:     %d\n", cyclesCompleted);
+                console.printf("Ticket #:     %d\n", ticket); // ADDED
                 console.printf("Unique failures:      %,d\n", uniqueFailures.size());
                 console.printf("Queue size:           %,d (%,d favored last cycle)\n", savedInputs.size(), numFavoredLastCycle);
                 console.printf("Current parent input: %s\n", currentParentInputDesc);
@@ -527,7 +541,7 @@ public class ZestGuidance implements Guidance {
                 console.printf("Valid coverage:       %,d branches (%.2f%% of map)\n", nonZeroValidCount, nonZeroValidFraction);
             }
         }
-
+        */
         String plotData = String.format("%d, %d, %d, %d, %d, %d, %.2f%%, %d, %d, %d, %.2f, %d, %d, %.2f%%, %d, %d",
                 TimeUnit.MILLISECONDS.toSeconds(now.getTime()), cyclesCompleted, currentParentInputIdx,
                 numSavedInputs, 0, 0, nonZeroFraction, uniqueFailures.size(), 0, 0, intervalExecsPerSecDouble,
@@ -673,6 +687,7 @@ public class ZestGuidance implements Guidance {
             } else {
                 // The number of children to produce is determined by how much of the coverage
                 // pool this parent input hits
+                /*
                 Input currentParentInput = savedInputs.get(currentParentInputIdx);
                 int targetNumChildren = getTargetChildrenForParent(currentParentInput);
                 if (numChildrenGeneratedForCurrentParentInput >= targetNumChildren) {
@@ -692,6 +707,38 @@ public class ZestGuidance implements Guidance {
                 // infoLog("Mutating input: %s", parent.desc);
                 currentInput = parent.fuzz(random);
                 numChildrenGeneratedForCurrentParentInput++;
+                */
+                // ADDED
+                /** Rewritten code for lottery scheduling */
+                int total_tickets = 0;
+                for (int amount : energy)
+                    total_tickets += amount;
+                Random ticket_generator = new Random();
+                // general logic
+                //int ticket = ticket_generator.nextInt(total_tickets);
+                // global to debug in console
+                ticket = ticket_generator.nextInt(total_tickets);
+                
+                //global_var_for_cycles = (global_var_for_cycles + 1) % energy.size();
+                //if (global_var_for_cycles == 0)
+                //    completeCycle();
+
+                int ticket_temp = 0;
+                int index_temp = 0;
+                for (int i = 0; i < energy.size(); i++) {
+                    ticket_temp += energy.get(i);
+                    if (ticket_temp <= ticket) {
+                        index_temp = i;
+                        break;
+                    }
+                }
+                Input parent = savedInputs.get(index_temp);
+
+                // Fuzz it to get a new input
+                // infoLog("Mutating input: %s", parent.desc);
+                currentInput = parent.fuzz(random);
+                // END OF ADDED
+                
 
                 // Write it to disk for debugging
                 try {
@@ -720,7 +767,7 @@ public class ZestGuidance implements Guidance {
             && numTrials < maxTrials) {
             return true;
         } else {
-            displayStats(true);
+            displayStats(false); // displayStats(true);
             return false;
         }
     }
@@ -970,6 +1017,10 @@ public class ZestGuidance implements Guidance {
 
         // Second, save to queue
         savedInputs.add(currentInput);
+        energy.add(STANDARD_ENERGY); // ADDED
+        // for testing purposes - delete afterwards
+        //if (currentInput.isFavored())
+        //    energy.set(newInputIdx,  STANDARD_ENERGY * 2);
 
         // Third, store basic book-keeping data
         currentInput.id = newInputIdx;

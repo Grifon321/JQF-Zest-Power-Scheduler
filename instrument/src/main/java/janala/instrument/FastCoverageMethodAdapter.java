@@ -70,11 +70,22 @@ public class FastCoverageMethodAdapter extends MethodVisitor implements Opcodes 
         }
       }
     }
+    /* System.err.println("CALL" + name); */
+    //mv.visitFieldInsn(GETSTATIC, "java/lang/System", "err", "Ljava/io/PrintStream;");
+    //mv.visitLdcInsn("CALL " + name);
+    //mv.visitMethodInsn(INVOKEVIRTUAL, "java/io/PrintStream", "println", "(Ljava/lang/String;)V", false);
+
+    /* Call */
     mv.visitMethodInsn(opcode, owner, name, desc, itf);
+
+    /* System.err.println("RETURN" + name);  */
+    //mv.visitFieldInsn(Opcodes.GETSTATIC, "java/lang/System", "err", "Ljava/io/PrintStream;");
+    //mv.visitLdcInsn("RETURN " + name);
+    //mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL, "java/io/PrintStream", "println", "(Ljava/lang/String;)V", false);
   }
 
   @Override
-  public void visitCode() {
+  public void visitCode() {  
     super.visitCode();
     addBipushInsn(mv, methodIID);
     mv.visitMethodInsn(INVOKESTATIC, Config.instance.analysisClass, "LOGMETHODBEGIN", "(I)V", false);
@@ -97,6 +108,11 @@ public class FastCoverageMethodAdapter extends MethodVisitor implements Opcodes 
     mv.visitLabel(intermediateBranchTarget);
     addBipushInsn(mv, iid);
     addBipushInsn(mv, 1); // Mark branch as taken
+    /* Prints out if IID of coverage ID has been visited with jump*/
+    mv.visitFieldInsn(GETSTATIC, "java/lang/System", "err", "Ljava/io/PrintStream;");
+    mv.visitLdcInsn("Jumped, Visited " + iid);
+    mv.visitMethodInsn(INVOKEVIRTUAL, "java/io/PrintStream", "println", "(Ljava/lang/String;)V", false);
+
     mv.visitMethodInsn(INVOKESTATIC, Config.instance.analysisClass, instMethodName, instMethodDesc, false);
     mv.visitJumpInsn(GOTO, finalBranchTarget); // Go to actual branch target
 
@@ -104,6 +120,11 @@ public class FastCoverageMethodAdapter extends MethodVisitor implements Opcodes 
     mv.visitLabel(fallthrough);
     addBipushInsn(mv, iid);
     addBipushInsn(mv, 0); // Mark branch as not taken
+    /* Prints out if IID of coverage ID has been visited without jump*/
+    mv.visitFieldInsn(GETSTATIC, "java/lang/System", "err", "Ljava/io/PrintStream;");
+    mv.visitLdcInsn("Did not jump, Visited " + iid);
+    mv.visitMethodInsn(INVOKEVIRTUAL, "java/io/PrintStream", "println", "(Ljava/lang/String;)V", false);
+    
     mv.visitMethodInsn(INVOKESTATIC, Config.instance.analysisClass, instMethodName, instMethodDesc, false);
 
     // continue with fall-through code visiting
@@ -229,7 +250,14 @@ public class FastCoverageMethodAdapter extends MethodVisitor implements Opcodes 
 
   @Override
   public void visitMaxs(int maxStack, int maxLocals) {
+    // Writing where the test ended (can not override visitEnd because visitMax calculates the number of locals)
+    // Doesnt work for some reason.
+    //mv.visitFieldInsn(GETSTATIC, "java/lang/System", "err", "Ljava/io/PrintStream;");
+    //mv.visitLdcInsn("Test Ended");
+    //mv.visitMethodInsn(INVOKEVIRTUAL, "java/io/PrintStream", "println", "(Ljava/lang/String;)V", false);
+    
     //Allow ASM to calculate the correct maxStack by passing '0' as the maximum stack value.
     mv.visitMaxs(0, maxLocals);
   }
+  
 }
