@@ -1,0 +1,19 @@
+Compiler :
+javac -cp .:$(/vol/fob-vol7/mi19/evlakhoi/Schreibtisch/JQF-AFL/scripts/classpath.sh) CalendarLogic.java CalendarGenerator.java CalendarTest.java
+
+Execution :
+/vol/fob-vol7/mi19/evlakhoi/Schreibtisch/JQF-AFL/bin/jqf-zest -c .:$(/vol/fob-vol7/mi19/evlakhoi/Schreibtisch/JQF-AFL/scripts/classpath.sh) CalendarTest testLeapYear > Output.txt
+/vol/fob-vol7/mi19/evlakhoi/Schreibtisch/JQF-AFL/bin/jqf-zest -c .:$(/vol/fob-vol7/mi19/evlakhoi/Schreibtisch/JQF-AFL/scripts/classpath.sh) CalendarTest testLeapYear > OutputTest3.txt
+
+
+Compiler :
+javac -cp .:$(/vol/fob-vol7/mi19/evlakhoi/Schreibtisch/JQF-AFL/scripts/classpath.sh) TestingSubject.java TestingSubjectGenerator.java TestingSubjectDriver.java
+
+Execution :
+/vol/fob-vol7/mi19/evlakhoi/Schreibtisch/JQF-AFL/bin/jqf-zest -c .:$(/vol/fob-vol7/mi19/evlakhoi/Schreibtisch/JQF-AFL/scripts/classpath.sh) TestingSubjectDriver testCalculateSum > OutputTestingSubject.txt
+
+
+
+
+bash anal.sh ${VERSION}-${SUITE}-l${RUN} 1 2m ant.ProjectBuilderTest ../res ../ >> AntTestOutput
+bash anal.sh ${VERSION}-${SUITE}-l${RUN} 1 1h closure.CompilerTest ../res ../ >> AntTestOutput
