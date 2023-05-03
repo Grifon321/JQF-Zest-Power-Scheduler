@@ -1,0 +1,4 @@
+.energySavedInputs : [1.0]
+energy : [1]
+Total Tickets : 1
+Currently fuzzed input is :0

@@ -1,0 +1,40 @@
+.Energy Saved Inputs [0] = 0.3187145888367874
+Energy Saved Inputs [1] = 0.35620169576260496
+Energy Saved Inputs [2] = 0.3250837154006076
+Currently fuzzed input is :1
+Energy Saved Inputs [0] = 0.13630333740029393
+Energy Saved Inputs [1] = 0.14817890449993656
+Energy Saved Inputs [2] = 0.13914651538063394
+Energy Saved Inputs [3] = 0.15120231237680712
+Currently fuzzed input is :1
+Energy Saved Inputs [0] = 0.08752852459704907
+Energy Saved Inputs [1] = 0.0966829208174555
+Energy Saved Inputs [2] = 0.08776447537248844
+Energy Saved Inputs [3] = 0.09735169053812257
+Currently fuzzed input is :1
+Energy Saved Inputs [0] = 0.06062098938075472
+Energy Saved Inputs [1] = 0.06598538720916929
+Energy Saved Inputs [2] = 0.06072804766426623
+Energy Saved Inputs [3] = 0.0661956064634045
+Energy Saved Inputs [4] = 0.06083120863498996
+Currently fuzzed input is :1
+Energy Saved Inputs [0] = 0.04643144823237465
+Energy Saved Inputs [1] = 0.05113415325964338
+Energy Saved Inputs [2] = 0.046429934504536
+Energy Saved Inputs [3] = 0.05095935812397198
+Energy Saved Inputs [4] = 0.04625665309670328
+Currently fuzzed input is :3
+Energy Saved Inputs [0] = 0.03586538253745108
+Energy Saved Inputs [1] = 0.03982013459644251
+Energy Saved Inputs [2] = 0.03601047488193513
+Energy Saved Inputs [3] = 0.039862363142524906
+Energy Saved Inputs [4] = 0.03590761108353348
+Energy Saved Inputs [5] = 0.03586538253745108
+Currently fuzzed input is :3
+Energy Saved Inputs [0] = 0.029319168688247958
+Energy Saved Inputs [1] = 0.032537844580796
+Energy Saved Inputs [2] = 0.02943921713568901
+Energy Saved Inputs [3] = 0.03257412699501459
+Energy Saved Inputs [4] = 0.029355451102466536
+Energy Saved Inputs [5] = 0.029319168688247948
+Currently fuzzed input is :0

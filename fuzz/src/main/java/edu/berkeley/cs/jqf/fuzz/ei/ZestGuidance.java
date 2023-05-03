@@ -72,6 +72,7 @@ import edu.berkeley.cs.jqf.instrument.tracing.events.TraceEvent;
 import janala.instrument.FastCoverageListener;
 import org.eclipse.collections.api.iterator.IntIterator;
 import org.eclipse.collections.api.list.primitive.IntList;
+import org.eclipse.collections.impl.list.mutable.primitive.IntArrayList;
 import org.eclipse.collections.impl.set.mutable.primitive.IntHashSet;
 
 import static java.lang.Math.ceil;
@@ -119,6 +120,94 @@ public class ZestGuidance implements Guidance {
 
     /** Set of saved inputs to fuzz. */
     protected ArrayList<Input> savedInputs = new ArrayList<>();
+
+    /** Energy of saved inputs to fuzz. */ 
+    protected ArrayList<Double> energySavedInputs = new ArrayList<>();
+
+    /** Energy of saved inputs to fuzz. */ 
+    protected HashMap <Integer, Integer> localIncedences = new HashMap<Integer, Integer>();
+
+    protected double currentTotalEnergy = 0;
+
+    public void assignEnergy() {
+        for (int i = 0; i < savedInputs.size(); i++) {
+            double incidenceEnergyInput = 0.0;
+            for(int j : savedInputs.get(i).coverage.getCovered().toArray()) {
+                incidenceEnergyInput += (localIncedences.get(j) + 1) * Math.log(localIncedences.get(j) + 1);
+            }
+            Integer incidenceEnergyTotal = localIncedences.size();
+            for(Map.Entry<Integer, Integer> elementEnergy : localIncedences.entrySet()) {
+                incidenceEnergyTotal += elementEnergy.getValue();
+            }
+            double currentEnergy = Math.log(incidenceEnergyTotal) - incidenceEnergyInput / incidenceEnergyTotal;
+            energySavedInputs.set(i, currentEnergy);
+        }
+    }
+    public void calclutateTotalEnergy() {
+        for(Double i : energySavedInputs) {
+            currentTotalEnergy += i;
+        }
+    }
+    public void normalizeEnergy() {
+        for(int i = 0; i < energySavedInputs.size(); i++) {
+            energySavedInputs.set(i, energySavedInputs.get(i) / currentTotalEnergy);
+        }
+    }
+
+    public void calculateIncedence() {
+        for (int i : runCoverage.getCovered().toArray()) {
+            if(localIncedences.containsKey(i)) {
+                localIncedences.put(i, localIncedences.get(i) + 1);
+            } else {
+                localIncedences.put(i, 1);
+            }
+        }
+    }
+
+    public void convertEnergyToTickets() {
+        Double minEnergySavedInputs = 100.0;
+        for (int i = 0; i < energySavedInputs.size(); i++) {
+            if ( minEnergySavedInputs > energySavedInputs.get(i) )
+                minEnergySavedInputs = energySavedInputs.get(i);
+        }
+        //System.out.println("minEnergySavedInputs = " + minEnergySavedInputs);
+        for (int i = 0; i < energySavedInputs.size(); i++) {
+            //System.out.println("energySavedInputs [" + i + "] = " + energySavedInputs.get(i));
+            energySavedInputs.set(i, energySavedInputs.get(i) );
+        }
+    }
+
+    /** Standard energy of each input */
+    protected int STANDARD_ENERGY = 10; // ADDED
+
+    public int chooseNextInput() {
+        // Normalize to the tickets
+        Double minEnergySavedInputs = 1.0;
+        for (int i = 0; i < energySavedInputs.size(); i++) {
+            if ( minEnergySavedInputs > energySavedInputs.get(i) )
+                minEnergySavedInputs = energySavedInputs.get(i);
+        }
+
+        int total_tickets = 0;
+        for (double amount : energySavedInputs)
+            total_tickets += (int) Math.ceil(amount / minEnergySavedInputs);
+        Random ticket_generator = new Random();
+        // general logic
+        int ticket = ticket_generator.nextInt(total_tickets);
+                
+
+        int ticket_temp = 0;
+        int index_temp = 0;
+        for (int i = 0; i < energySavedInputs.size(); i++) {
+            ticket_temp += (int) Math.ceil(energySavedInputs.get(i) / minEnergySavedInputs);
+            if (ticket_temp >= ticket) {
+                index_temp = i;
+                break;    
+            }
+        }
+        //System.out.println("Currently fuzzed input is :" + index_temp );
+        return index_temp;
+    }
 
     /** Queue of seeds to fuzz. */
     protected Deque<Input> seedInputs = new ArrayDeque<>();
@@ -467,6 +556,7 @@ public class ZestGuidance implements Guidance {
 
     // Call only if console exists
     protected void displayStats(boolean force) {
+        
         Date now = new Date();
         long intervalMilliseconds = now.getTime() - lastRefreshTime.getTime();
         if (intervalMilliseconds < STATS_REFRESH_TIME_PERIOD && !force) {
@@ -495,7 +585,7 @@ public class ZestGuidance implements Guidance {
         double nonZeroFraction = nonZeroCount * 100.0 / totalCoverage.size();
         int nonZeroValidCount = validCoverage.getNonZeroCount();
         double nonZeroValidFraction = nonZeroValidCount * 100.0 / validCoverage.size();
-
+        /*
         if (console != null) {
             if (LIBFUZZER_COMPAT_OUTPUT) {
                 console.printf("#%,d\tNEW\tcov: %,d exec/s: %,d L: %,d\n", numTrials, nonZeroValidCount, intervalExecsPerSec, currentInput.size());
@@ -519,6 +609,7 @@ public class ZestGuidance implements Guidance {
                                maxTrials == Long.MAX_VALUE ? "no trial limit" : ("max " + maxTrials));
                 console.printf("Valid inputs:         %,d (%.2f%%)\n", numValid, numValid * 100.0 / numTrials);
                 console.printf("Cycles completed:     %d\n", cyclesCompleted);
+                console.printf("Ticket #:     %d\n", ticket); // ADDED
                 console.printf("Unique failures:      %,d\n", uniqueFailures.size());
                 console.printf("Queue size:           %,d (%,d favored last cycle)\n", savedInputs.size(), numFavoredLastCycle);
                 console.printf("Current parent input: %s\n", currentParentInputDesc);
@@ -527,7 +618,7 @@ public class ZestGuidance implements Guidance {
                 console.printf("Valid coverage:       %,d branches (%.2f%% of map)\n", nonZeroValidCount, nonZeroValidFraction);
             }
         }
-
+        */
         String plotData = String.format("%d, %d, %d, %d, %d, %d, %.2f%%, %d, %d, %d, %.2f, %d, %d, %.2f%%, %d, %d",
                 TimeUnit.MILLISECONDS.toSeconds(now.getTime()), cyclesCompleted, currentParentInputIdx,
                 numSavedInputs, 0, 0, nonZeroFraction, uniqueFailures.size(), 0, 0, intervalExecsPerSecDouble,
@@ -673,16 +764,26 @@ public class ZestGuidance implements Guidance {
             } else {
                 // The number of children to produce is determined by how much of the coverage
                 // pool this parent input hits
+                
                 Input currentParentInput = savedInputs.get(currentParentInputIdx);
-                int targetNumChildren = getTargetChildrenForParent(currentParentInput);
+                int targetNumChildren = NUM_CHILDREN_BASELINE;
                 if (numChildrenGeneratedForCurrentParentInput >= targetNumChildren) {
+                    //System.out.println("assignEnergy();");
+                    assignEnergy();
+                    //System.out.println("calclutateTotalEnergy();");
+                    calclutateTotalEnergy();
+                    //System.out.println("normalizeEnergy();");
+                    normalizeEnergy();
+                    //for(int i = 0; i < energySavedInputs.size(); i++) 
+                    //    System.out.println("Energy Saved Inputs [" + i + "] = " + energySavedInputs.get(i));
                     // Select the next saved input to fuzz
-                    currentParentInputIdx = (currentParentInputIdx + 1) % savedInputs.size();
+                    //currentParentInputIdx = (currentParentInputIdx + 1) % savedInputs.size();
+                    currentParentInputIdx = chooseNextInput();
 
                     // Count cycles
-                    if (currentParentInputIdx == 0) {
-                        completeCycle();
-                    }
+                    //if (currentParentInputIdx == 0) {
+                    //    completeCycle();
+                    //}
 
                     numChildrenGeneratedForCurrentParentInput = 0;
                 }
@@ -692,6 +793,45 @@ public class ZestGuidance implements Guidance {
                 // infoLog("Mutating input: %s", parent.desc);
                 currentInput = parent.fuzz(random);
                 numChildrenGeneratedForCurrentParentInput++;
+                
+                // ADDED
+                /** Rewritten code for lottery scheduling */
+                /*
+                assignEnergy();
+                calclutateTotalEnergy();
+                normalizeEnergy();
+                convertEnergyToTickets();
+                
+                int total_tickets = 0;
+                for (double amount : energySavedInputs)
+                    total_tickets += (int) Math.ceil(amount);
+                Random ticket_generator = new Random();
+                // general logic
+                //int ticket = ticket_generator.nextInt(total_tickets);
+                ticket = ticket_generator.nextInt(total_tickets);
+                
+                //global_var_for_cycles = (global_var_for_cycles + 1) % energy.size();
+                //if (global_var_for_cycles == 0)
+                //    completeCycle();
+
+                int ticket_temp = 0;
+                int index_temp = 0;
+                for (int i = 0; i < energySavedInputs.size(); i++) {
+                    ticket_temp += energySavedInputs.get(i);
+                    if (ticket_temp >= ticket) {
+                        index_temp = i;
+                        break;
+                    }
+                }
+                System.out.println("Currently fuzzed input is :" + index_temp );
+                Input parent = savedInputs.get(index_temp);
+
+                */
+                // Fuzz it to get a new input
+                // infoLog("Mutating input: %s", parent.desc);
+                currentInput = parent.fuzz(random);
+                // END OF ADDED
+                
 
                 // Write it to disk for debugging
                 try {
@@ -720,7 +860,7 @@ public class ZestGuidance implements Guidance {
             && numTrials < maxTrials) {
             return true;
         } else {
-            displayStats(true);
+            displayStats(false); // displayStats(true);
             return false;
         }
     }
@@ -734,15 +874,17 @@ public class ZestGuidance implements Guidance {
             // Increment run count
             this.numTrials++;
 
+
             boolean valid = result == Result.SUCCESS;
 
             if (valid) {
                 // Increment valid counter
                 numValid++;
             }
-
+            
             if (result == Result.SUCCESS || (result == Result.INVALID && !SAVE_ONLY_VALID)) {
-
+                // Local Incedence of Entropic
+                calculateIncedence();
                 // Compute a list of keys for which this input can assume responsibility.
                 // Newly covered branches are always included.
                 // Existing branches *may* be included, depending on the heuristics used.
@@ -784,6 +926,8 @@ public class ZestGuidance implements Guidance {
                     updateCoverageFile();
                 }
             } else if (result == Result.FAILURE || result == Result.TIMEOUT) {
+                // Local Incedence of Entropic
+                calculateIncedence();
                 String msg = error.getMessage();
 
                 // Get the root cause of the failure
@@ -971,12 +1115,19 @@ public class ZestGuidance implements Guidance {
         // Second, save to queue
         savedInputs.add(currentInput);
 
+
+
+        // for testing purposes - delete afterwards
+        //if (currentInput.isFavored())
+        //    energy.set(newInputIdx,  STANDARD_ENERGY * 2);
+
         // Third, store basic book-keeping data
         currentInput.id = newInputIdx;
         currentInput.saveFile = saveFile;
         currentInput.coverage = runCoverage.copy();
         currentInput.nonZeroCoverage = runCoverage.getNonZeroCount();
         currentInput.offspring = 0;
+        energySavedInputs.add(0.0); // ADDED
         savedInputs.get(currentParentInputIdx).offspring += 1;
 
         // Fourth, assume responsibility for branches

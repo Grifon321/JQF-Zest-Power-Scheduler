@@ -31,10 +31,12 @@ public abstract class AbstractExecutionIndexingState {
     public AbstractExecutionIndexingState() {
         // Create a counter for depth = 0
         stackOfCounters.add(new NonZeroCachingCounter(COUNTER_SIZE));
+        //System.out.println("I was initialised!");
     }
 
     protected void setLastEventIid(int iid) {
         lastEventIid = iid;
+        //System.out.println("Last Event iid = " + iid);
     }
 
     public int getLastEventIid() {
