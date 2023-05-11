@@ -43,19 +43,20 @@ public class ZestEntropicDriver {
 
     public static void main(String[] args) {
         if (args.length < 2){
-            System.err.println("Usage: java " + ZestEntropicDriver.class + " TEST_CLASS TEST_METHOD [OUTPUT_DIR [SEED_DIR | SEED_FILES...]]");
+            System.err.println("Usage: java " + ZestEntropicDriver.class + " TEST_CLASS TEST_METHOD THRESHOLD (Default 256) [OUTPUT_DIR [SEED_DIR | SEED_FILES...]]");
             System.exit(1);
         }
 
         String testClassName  = args[0];
         String testMethodName = args[1];
-        String outputDirectoryName = args.length > 2 ? args[2] : "fuzz-results";
+        int threshold = Integer.parseInt(args[2]);
+        String outputDirectoryName = args.length > 3 ? args[3] : "fuzz-results";
         File outputDirectory = new File(outputDirectoryName);
         File[] seedFiles = null;
-        if (args.length > 3) {
-            seedFiles = new File[args.length-3];
-            for (int i = 3; i < args.length; i++) {
-                seedFiles[i-3] = new File(args[i]);
+        if (args.length > 4) {
+            seedFiles = new File[args.length-4];
+            for (int i = 4; i < args.length; i++) {
+                seedFiles[i-4] = new File(args[i]);
             }
         }
 
@@ -65,11 +66,11 @@ public class ZestEntropicDriver {
             ZestEntropicGuidance guidance = null;
 
             if (seedFiles == null) {
-                guidance = new ZestEntropicGuidance(title, null, outputDirectory);
+                guidance = new ZestEntropicGuidance(title, null, outputDirectory, threshold);
             } else if (seedFiles.length == 1 && seedFiles[0].isDirectory()) {
-                guidance = new ZestEntropicGuidance(title, null, outputDirectory, seedFiles[0]);
+                guidance = new ZestEntropicGuidance(title, null, outputDirectory, seedFiles[0], threshold);
             } else {
-                guidance = new ZestEntropicGuidance(title, null, outputDirectory, seedFiles);
+                guidance = new ZestEntropicGuidance(title, null, outputDirectory, seedFiles, threshold);
             }
 
 

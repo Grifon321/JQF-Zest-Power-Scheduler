@@ -72,6 +72,7 @@ import edu.berkeley.cs.jqf.instrument.tracing.events.TraceEvent;
 import janala.instrument.FastCoverageListener;
 import org.eclipse.collections.api.iterator.IntIterator;
 import org.eclipse.collections.api.list.primitive.IntList;
+import org.eclipse.collections.impl.list.mutable.primitive.IntArrayList;
 import org.eclipse.collections.impl.set.mutable.primitive.IntHashSet;
 
 import static java.lang.Math.ceil;
@@ -119,6 +120,96 @@ public class ZestEntropicGuidance implements Guidance {
 
     /** Set of saved inputs to fuzz. */
     protected ArrayList<Input> savedInputs = new ArrayList<>();
+
+    /** Energy of saved inputs to fuzz. */ 
+    protected ArrayList<Double> energySavedInputs = new ArrayList<>();
+
+    /** Energy of saved inputs to fuzz. */ 
+    protected HashMap <Integer, Integer> localIncedences = new HashMap<Integer, Integer>();
+
+    /** Total energy of each seed. */ 
+    protected double currentTotalEnergy = 0;
+
+    /** Local incedences threshold. */ 
+    protected int threshold = 256;
+    
+    /** Assigns energy to each input of the savedInputs queue. */
+    public void assignEnergy() {
+        for (int i = 0; i < savedInputs.size(); i++) {
+            double incidenceEnergyInput = 0.0;
+            for(int j : savedInputs.get(i).coverage.getCovered().toArray()) {
+                if(localIncedences.get(j) < threshold)
+                    incidenceEnergyInput += (localIncedences.get(j) + 1) * Math.log(localIncedences.get(j) + 1);
+            }
+            //Integer incidenceEnergyTotal = localIncedences.size();
+            Integer incidenceEnergyTotal = 0;
+            for(Map.Entry<Integer, Integer> elementEnergy : localIncedences.entrySet()) {
+                if(elementEnergy.getValue() < threshold) {
+                    incidenceEnergyTotal += elementEnergy.getValue();
+                    incidenceEnergyTotal++;
+                }
+            }
+            double currentEnergy = Math.log(incidenceEnergyTotal) - incidenceEnergyInput / incidenceEnergyTotal;
+            energySavedInputs.set(i, currentEnergy);
+        }
+    }
+    
+    /** Calculates the total energy of each saved input. */
+    public void calclutateTotalEnergy() {
+        for(Double i : energySavedInputs) {
+            currentTotalEnergy += i;
+        }
+    }
+    
+    /** Normalizes energy of each saved input. */
+    public void normalizeEnergy() {
+        for(int i = 0; i < energySavedInputs.size(); i++) {
+            energySavedInputs.set(i, energySavedInputs.get(i) / currentTotalEnergy);
+        }
+    }
+
+    /** Updates the local incedence of each branch. */
+    public void calculateIncedence() {
+        for (int i : runCoverage.getCovered().toArray()) {
+            if(localIncedences.containsKey(i)) {
+                localIncedences.put(i, localIncedences.get(i) + 1);
+            } else {
+                localIncedences.put(i, 1);
+            }
+        }
+    }
+
+    /** Standard energy of each input. */
+    protected int STANDARD_ENERGY = 10; // ADDED
+
+    /** Chooses next to fuzz input. */
+    public int chooseNextInput() {
+        // Normalize to the tickets
+        Double minEnergySavedInputs = 1.0;
+        for (int i = 0; i < energySavedInputs.size(); i++) {
+            if ( minEnergySavedInputs > energySavedInputs.get(i) )
+                minEnergySavedInputs = energySavedInputs.get(i);
+        }
+
+        int total_tickets = 0;
+        for (double amount : energySavedInputs)
+            total_tickets += (int) Math.ceil(amount / minEnergySavedInputs);
+        Random ticket_generator = new Random();
+        // general logic
+        int ticket = ticket_generator.nextInt(total_tickets);
+                
+
+        int ticket_temp = 0;
+        int index_temp = 0;
+        for (int i = 0; i < energySavedInputs.size(); i++) {
+            ticket_temp += (int) Math.ceil(energySavedInputs.get(i) / minEnergySavedInputs);
+            if (ticket_temp >= ticket) {
+                index_temp = i;
+                break;    
+            }
+        }
+        return index_temp;
+    }
 
     /** Queue of seeds to fuzz. */
     protected Deque<Input> seedInputs = new ArrayDeque<>();
@@ -367,6 +458,23 @@ public class ZestEntropicGuidance implements Guidance {
      * @param duration the amount of time to run fuzzing for, where
      *                 {@code null} indicates unlimited time.
      * @param outputDirectory the directory where fuzzing results will be written
+     * @param seedInputDir the directory containing one or more input files to be used as initial inputs
+     * @param Threshold threshold of Entropic
+     * @throws IOException if the output directory could not be prepared
+     */
+    public ZestEntropicGuidance(String testName, Duration duration, File outputDirectory, File seedInputDir, int Threshold) throws IOException {
+        this(testName, duration, null, outputDirectory, seedInputDir, new Random());
+        this.threshold = Threshold;
+    }
+
+    /**
+     * Creates a new Zest guidance instance with seed inputs and
+     * optional duration.
+     *
+     * @param testName the name of test to display on the status screen
+     * @param duration the amount of time to run fuzzing for, where
+     *                 {@code null} indicates unlimited time.
+     * @param outputDirectory the directory where fuzzing results will be written
      * @throws IOException if the output directory could not be prepared
      */
     public ZestEntropicGuidance(String testName, Duration duration, File outputDirectory) throws IOException {
@@ -381,10 +489,42 @@ public class ZestEntropicGuidance implements Guidance {
      * @param duration the amount of time to run fuzzing for, where
      *                 {@code null} indicates unlimited time.
      * @param outputDirectory the directory where fuzzing results will be written
+     * @param Threshold threshold of Entropic
+     * @throws IOException if the output directory could not be prepared
+     */
+    public ZestEntropicGuidance(String testName, Duration duration, File outputDirectory, int Threshold) throws IOException {
+        this(testName, duration, null, outputDirectory, new Random());
+        this.threshold = Threshold;
+    }
+
+    /**
+     * Creates a new Zest guidance instance with seed inputs and
+     * optional duration.
+     *
+     * @param testName the name of test to display on the status screen
+     * @param duration the amount of time to run fuzzing for, where
+     *                 {@code null} indicates unlimited time.
+     * @param outputDirectory the directory where fuzzing results will be written
      * @throws IOException if the output directory could not be prepared
      */
     public ZestEntropicGuidance(String testName, Duration duration, File outputDirectory, File[] seedFiles) throws IOException {
         this(testName, duration, null, outputDirectory, seedFiles, new Random());
+    }
+
+    /**
+     * Creates a new Zest guidance instance with seed inputs and
+     * optional duration.
+     *
+     * @param testName the name of test to display on the status screen
+     * @param duration the amount of time to run fuzzing for, where
+     *                 {@code null} indicates unlimited time.
+     * @param outputDirectory the directory where fuzzing results will be written
+     * @param Threshold threshold of Entropic
+     * @throws IOException if the output directory could not be prepared
+     */
+    public ZestEntropicGuidance(String testName, Duration duration, File outputDirectory, File[] seedFiles, int Threshold) throws IOException {
+        this(testName, duration, null, outputDirectory, seedFiles, new Random());
+        this.threshold = Threshold;
     }
 
     private void prepareOutputDirectory() throws IOException {
@@ -495,7 +635,7 @@ public class ZestEntropicGuidance implements Guidance {
         double nonZeroFraction = nonZeroCount * 100.0 / totalCoverage.size();
         int nonZeroValidCount = validCoverage.getNonZeroCount();
         double nonZeroValidFraction = nonZeroValidCount * 100.0 / validCoverage.size();
-
+        /*
         if (console != null) {
             if (LIBFUZZER_COMPAT_OUTPUT) {
                 console.printf("#%,d\tNEW\tcov: %,d exec/s: %,d L: %,d\n", numTrials, nonZeroValidCount, intervalExecsPerSec, currentInput.size());
@@ -519,6 +659,7 @@ public class ZestEntropicGuidance implements Guidance {
                                maxTrials == Long.MAX_VALUE ? "no trial limit" : ("max " + maxTrials));
                 console.printf("Valid inputs:         %,d (%.2f%%)\n", numValid, numValid * 100.0 / numTrials);
                 console.printf("Cycles completed:     %d\n", cyclesCompleted);
+                console.printf("Ticket #:     %d\n", ticket); // ADDED
                 console.printf("Unique failures:      %,d\n", uniqueFailures.size());
                 console.printf("Queue size:           %,d (%,d favored last cycle)\n", savedInputs.size(), numFavoredLastCycle);
                 console.printf("Current parent input: %s\n", currentParentInputDesc);
@@ -527,7 +668,7 @@ public class ZestEntropicGuidance implements Guidance {
                 console.printf("Valid coverage:       %,d branches (%.2f%% of map)\n", nonZeroValidCount, nonZeroValidFraction);
             }
         }
-
+*/
         String plotData = String.format("%d, %d, %d, %d, %d, %d, %.2f%%, %d, %d, %d, %.2f, %d, %d, %.2f%%, %d, %d",
                 TimeUnit.MILLISECONDS.toSeconds(now.getTime()), cyclesCompleted, currentParentInputIdx,
                 numSavedInputs, 0, 0, nonZeroFraction, uniqueFailures.size(), 0, 0, intervalExecsPerSecDouble,
@@ -674,16 +815,12 @@ public class ZestEntropicGuidance implements Guidance {
                 // The number of children to produce is determined by how much of the coverage
                 // pool this parent input hits
                 Input currentParentInput = savedInputs.get(currentParentInputIdx);
-                int targetNumChildren = getTargetChildrenForParent(currentParentInput);
+                int targetNumChildren = NUM_CHILDREN_BASELINE;
                 if (numChildrenGeneratedForCurrentParentInput >= targetNumChildren) {
-                    // Select the next saved input to fuzz
-                    currentParentInputIdx = (currentParentInputIdx + 1) % savedInputs.size();
-
-                    // Count cycles
-                    if (currentParentInputIdx == 0) {
-                        completeCycle();
-                    }
-
+                    assignEnergy();
+                    calclutateTotalEnergy();
+                    normalizeEnergy();
+                    currentParentInputIdx = chooseNextInput();
                     numChildrenGeneratedForCurrentParentInput = 0;
                 }
                 Input parent = savedInputs.get(currentParentInputIdx);
@@ -691,7 +828,7 @@ public class ZestEntropicGuidance implements Guidance {
                 // Fuzz it to get a new input
                 // infoLog("Mutating input: %s", parent.desc);
                 currentInput = parent.fuzz(random);
-                numChildrenGeneratedForCurrentParentInput++;
+                numChildrenGeneratedForCurrentParentInput++;   
 
                 // Write it to disk for debugging
                 try {
@@ -742,7 +879,8 @@ public class ZestEntropicGuidance implements Guidance {
             }
 
             if (result == Result.SUCCESS || (result == Result.INVALID && !SAVE_ONLY_VALID)) {
-
+                // Local Incedence of Entropic
+                calculateIncedence();
                 // Compute a list of keys for which this input can assume responsibility.
                 // Newly covered branches are always included.
                 // Existing branches *may* be included, depending on the heuristics used.
@@ -784,6 +922,8 @@ public class ZestEntropicGuidance implements Guidance {
                     updateCoverageFile();
                 }
             } else if (result == Result.FAILURE || result == Result.TIMEOUT) {
+                // Local Incedence of Entropic
+                calculateIncedence();
                 String msg = error.getMessage();
 
                 // Get the root cause of the failure
@@ -977,6 +1117,7 @@ public class ZestEntropicGuidance implements Guidance {
         currentInput.coverage = runCoverage.copy();
         currentInput.nonZeroCoverage = runCoverage.getNonZeroCount();
         currentInput.offspring = 0;
+        energySavedInputs.add(0.0); // ADDED
         savedInputs.get(currentParentInputIdx).offspring += 1;
 
         // Fourth, assume responsibility for branches
