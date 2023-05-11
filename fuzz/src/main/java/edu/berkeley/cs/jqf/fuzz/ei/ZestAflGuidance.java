@@ -252,6 +252,71 @@ public class ZestAflGuidance implements Guidance {
     /** Multiplication factor for number of children to produce for favored inputs. */
     protected final int NUM_CHILDREN_MULTIPLIER_FAVORED = 20;
 
+    /** Amount of inputs generated with the same Coverage as Input saved with the same index in the savedInputs. */
+    protected ArrayList<Integer> fuzzedToCoverageCounter = new ArrayList<>();
+
+    /** Amount of times the input was chosen from the queue to fuzz. */
+    protected ArrayList<Integer> fuzzedTimes = new ArrayList<>();
+
+    /** Maximal amount of children to generate. */
+    protected int MaxEnergy = NUM_CHILDREN_BASELINE * NUM_CHILDREN_MULTIPLIER_FAVORED;
+
+    /** Energy of each input from savedInputs. */
+    protected ArrayList<Integer> energySavedInputs = new ArrayList<>();
+
+    /** Assigns energy to input with the index IndexOfInput into energySavedInputs. */
+    public void assignEnergyInput(int IndexOfInput) {
+            Integer currentEnergy = (int) Math.min( 
+                                        Math.ceil( NUM_CHILDREN_BASELINE *
+                                            Math.pow(2, fuzzedTimes.get(IndexOfInput))
+                                                / fuzzedToCoverageCounter.get(IndexOfInput)),
+                                        (double) MaxEnergy);
+            energySavedInputs.set(IndexOfInput, currentEnergy);
+    }
+
+    /** Order of inputs for fuzzing. */
+    protected ArrayList<Integer> orderOfExecution = new ArrayList<>();
+
+    /** Index for orderOfExecution. */
+    protected int indexOfOrder = 0;
+
+    /** Determines the order of fuzzing of inputs from savedInputs. */
+    public void findOrderOfExecution() {
+      int current_position = 0;
+      for(int i = 0; i < fuzzedTimes.size(); i++) {
+          int temp_s = fuzzedTimes.get(i);
+          double temp_f = fuzzedToCoverageCounter.get(i);
+          
+          if (fuzzedTimes.get(current_position) != fuzzedTimes.get(i)) 
+            current_position = i;
+          int position = current_position;
+          
+          for(int j = current_position; j < fuzzedTimes.size(); j++) {
+              if( temp_s != fuzzedTimes.get(j) ) {
+                  break;
+              }
+              if( temp_f > fuzzedToCoverageCounter.get(j) )
+                position++;
+          }
+          if(orderOfExecution.get(position) == -1) {
+            orderOfExecution.set(position, i);
+          } else {
+              for(int position_iterator = current_position + 1; position_iterator < fuzzedTimes.size(); position_iterator++)
+                if(orderOfExecution.get(position_iterator) == -1) {
+                    orderOfExecution.set(position_iterator, i);
+                    break;
+                }
+          }
+      }
+      // Reverse the array
+      int temp_size = orderOfExecution.size();
+      for(int i = 0; i < temp_size / 2; i++) {
+          int temp = orderOfExecution.get(i);
+          orderOfExecution.set(i, orderOfExecution.get(temp_size - 1 - i));
+          orderOfExecution.set(temp_size - 1 - i, temp);
+      }
+    }
+
     /** Mean number of mutations to perform in each round. */
     protected final double MEAN_MUTATION_COUNT = 8.0;
 
@@ -488,7 +553,7 @@ public class ZestAflGuidance implements Guidance {
             currentParentInputDesc = currentParentInputIdx + " ";
             currentParentInputDesc += currentParentInput.isFavored() ? "(favored)" : "(not favored)";
             currentParentInputDesc += " {" + numChildrenGeneratedForCurrentParentInput +
-                    "/" + getTargetChildrenForParent(currentParentInput) + " mutations}";
+                    "/" + getTargetChildrenForParent(currentParentInputIdx) + " mutations}";
         }
 
         int nonZeroCount = totalCoverage.getNonZeroCount();
@@ -562,6 +627,11 @@ public class ZestAflGuidance implements Guidance {
         this.blind = blind;
     }
 
+    protected int getTargetChildrenForParent(Integer Index) {
+        return energySavedInputs.get(Index);
+    }
+
+/*
     protected int getTargetChildrenForParent(Input parentInput) {
         // Baseline is a constant
         int target = NUM_CHILDREN_BASELINE;
@@ -578,9 +648,14 @@ public class ZestAflGuidance implements Guidance {
 
         return target;
     }
-
+*/
     /** Handles the end of fuzzing cycle (i.e., having gone through the entire queue) */
     protected void completeCycle() {
+        // Find order of fuzzing executions
+        orderOfExecution = new ArrayList<>();
+        for(int i = 0; i < savedInputs.size(); i++)
+            orderOfExecution.add(-1);
+        findOrderOfExecution();
         // Increment cycle count
         cyclesCompleted++;
         infoLog("\n# Cycle " + cyclesCompleted + " completed.");
@@ -674,16 +749,20 @@ public class ZestAflGuidance implements Guidance {
                 // The number of children to produce is determined by how much of the coverage
                 // pool this parent input hits
                 Input currentParentInput = savedInputs.get(currentParentInputIdx);
-                int targetNumChildren = getTargetChildrenForParent(currentParentInput);
+                int targetNumChildren = getTargetChildrenForParent(currentParentInputIdx);
                 if (numChildrenGeneratedForCurrentParentInput >= targetNumChildren) {
-                    // Select the next saved input to fuzz
-                    currentParentInputIdx = (currentParentInputIdx + 1) % savedInputs.size();
+                    assignEnergyInput(currentParentInputIdx);
+                    fuzzedTimes.set(currentParentInputIdx, fuzzedTimes.get(currentParentInputIdx) + 1);
 
-                    // Count cycles
-                    if (currentParentInputIdx == 0) {
+                    // Select the next saved input to fuzz
+                    if (indexOfOrder + 1 >= orderOfExecution.size()) {
                         completeCycle();
+                        indexOfOrder = 0;
+                    } else {
+                        indexOfOrder++;
                     }
 
+                    currentParentInputIdx = orderOfExecution.get(indexOfOrder);
                     numChildrenGeneratedForCurrentParentInput = 0;
                 }
                 Input parent = savedInputs.get(currentParentInputIdx);
@@ -782,8 +861,42 @@ public class ZestAflGuidance implements Guidance {
 
                     // Update coverage information
                     updateCoverageFile();
+                }  else {
+                    // AFLFast
+                    IntList runCoverageGetCovered = runCoverage.getCovered();
+                    if( runCoverageGetCovered.equals(savedInputs.get(currentParentInputIdx).coverage.getCovered()) ) {
+
+                        fuzzedToCoverageCounter.set(currentParentInputIdx, fuzzedToCoverageCounter.get(currentParentInputIdx) + 1);
+
+                    } else {
+                        for (int i = 0; i < savedInputs.size(); i++) {
+
+                            if( runCoverageGetCovered.equals(savedInputs.get(i).coverage.getCovered()) ) {
+                                fuzzedToCoverageCounter.set(i, fuzzedToCoverageCounter.get(i) + 1);
+                                break;
+                            }
+                            
+                        }
+                    }
                 }
             } else if (result == Result.FAILURE || result == Result.TIMEOUT) {
+                // AFLFast
+                IntList runCoverageGetCovered = runCoverage.getCovered();
+                if( runCoverageGetCovered.equals(savedInputs.get(currentParentInputIdx).coverage.getCovered()) ) {
+
+                    fuzzedToCoverageCounter.set(currentParentInputIdx, fuzzedToCoverageCounter.get(currentParentInputIdx) + 1);
+
+                } else {        
+                    for (int i = 0; i < savedInputs.size(); i++) {
+
+                        if( runCoverageGetCovered.equals(savedInputs.get(i).coverage.getCovered()) ) {
+                            fuzzedToCoverageCounter.set(i, fuzzedToCoverageCounter.get(i) + 1);
+                            break;
+                        }
+
+                    }    
+                }
+
                 String msg = error.getMessage();
 
                 // Get the root cause of the failure
@@ -970,6 +1083,10 @@ public class ZestAflGuidance implements Guidance {
 
         // Second, save to queue
         savedInputs.add(currentInput);
+        // Placeholder for AFLFast variables
+        fuzzedToCoverageCounter.add(1);
+        fuzzedTimes.add(0);
+        energySavedInputs.add(NUM_CHILDREN_BASELINE);
 
         // Third, store basic book-keeping data
         currentInput.id = newInputIdx;
