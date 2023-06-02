@@ -133,24 +133,35 @@ public class ZestEntropicGuidance implements Guidance {
     /** Local incedences threshold. */ 
     protected int threshold = 256;
     
+    public void doubleThreshold() {
+        this.threshold *= 2;
+    }
+    
     /** Assigns energy to each input of the savedInputs queue. */
     public void assignEnergy() {
+        boolean thresholdChecker = false;
         for (int i = 0; i < savedInputs.size(); i++) {
             double incidenceEnergyInput = 0.0;
             for(int j : savedInputs.get(i).coverage.getCovered().toArray()) {
                 if(localIncedences.get(j) < threshold)
                     incidenceEnergyInput += (localIncedences.get(j) + 1) * Math.log(localIncedences.get(j) + 1);
             }
-            //Integer incidenceEnergyTotal = localIncedences.size();
             Integer incidenceEnergyTotal = 0;
+            
             for(Map.Entry<Integer, Integer> elementEnergy : localIncedences.entrySet()) {
                 if(elementEnergy.getValue() < threshold) {
                     incidenceEnergyTotal += elementEnergy.getValue();
                     incidenceEnergyTotal++;
+                    thresholdChecker = true;
                 }
             }
             double currentEnergy = Math.log(incidenceEnergyTotal) - incidenceEnergyInput / incidenceEnergyTotal;
             energySavedInputs.set(i, currentEnergy);
+        }
+        // In case no input can be generated, double the threshold
+        if (thresholdChecker == false) {
+            doubleThreshold();
+            assignEnergy();
         }
     }
     
@@ -408,6 +419,30 @@ public class ZestEntropicGuidance implements Guidance {
      * @param sourceOfRandomness      a pseudo-random number generator
      * @throws IOException if the output directory could not be prepared
      */
+    public ZestEntropicGuidance(String testName, Duration duration, Long trials, File outputDirectory, File[] seedInputFiles, Random sourceOfRandomness, int Threshold) throws IOException {
+        this(testName, duration, trials, outputDirectory, sourceOfRandomness);
+        if (seedInputFiles != null) {
+            for (File seedInputFile : seedInputFiles) {
+                seedInputs.add(new SeedInput(seedInputFile));
+            }
+        }
+        this.threshold = Threshold;
+    }
+
+    /**
+     * Creates a new Zest guidance instance with seed input files and optional
+     * duration, optional trial limit, an possibly deterministic PRNG.
+     *
+     * @param testName the name of test to display on the status screen
+     * @param duration the amount of time to run fuzzing for, where
+     *                 {@code null} indicates unlimited time.
+     * @param trials   the number of trials for which to run fuzzing, where
+     *                 {@code null} indicates unlimited trials.
+     * @param outputDirectory the directory where fuzzing results will be written
+     * @param seedInputFiles one or more input files to be used as initial inputs
+     * @param sourceOfRandomness      a pseudo-random number generator
+     * @throws IOException if the output directory could not be prepared
+     */
     public ZestEntropicGuidance(String testName, Duration duration, Long trials, File outputDirectory, File[] seedInputFiles, Random sourceOfRandomness) throws IOException {
         this(testName, duration, trials, outputDirectory, sourceOfRandomness);
         if (seedInputFiles != null) {
@@ -415,6 +450,25 @@ public class ZestEntropicGuidance implements Guidance {
                 seedInputs.add(new SeedInput(seedInputFile));
             }
         }
+    }
+
+    /**
+     * Creates a new Zest guidance instance with seed input directory and optional
+     * duration, optional trial limit, an possibly deterministic PRNG.
+     *
+     * @param testName the name of test to display on the status screen
+     * @param duration the amount of time to run fuzzing for, where
+     *                 {@code null} indicates unlimited time.
+     * @param trials   the number of trials for which to run fuzzing, where
+     *                 {@code null} indicates unlimited trials.
+     * @param outputDirectory the directory where fuzzing results will be written
+     * @param seedInputDir the directory containing one or more input files to be used as initial inputs
+     * @param sourceOfRandomness      a pseudo-random number generator
+     * @throws IOException if the output directory could not be prepared
+     */
+    public ZestEntropicGuidance(String testName, Duration duration, Long trials, File outputDirectory, File seedInputDir, Random sourceOfRandomness, int Threshold) throws IOException {
+        this(testName, duration, trials, outputDirectory, IOUtils.resolveInputFileOrDirectory(seedInputDir), sourceOfRandomness);
+        this.threshold = Threshold;
     }
 
     /**
@@ -626,16 +680,13 @@ public class ZestEntropicGuidance implements Guidance {
         } else {
             Input currentParentInput = savedInputs.get(currentParentInputIdx);
             currentParentInputDesc = currentParentInputIdx + " ";
-            currentParentInputDesc += currentParentInput.isFavored() ? "(favored)" : "(not favored)";
-            currentParentInputDesc += " {" + numChildrenGeneratedForCurrentParentInput +
-                    "/" + getTargetChildrenForParent(currentParentInput) + " mutations}";
+            //currentParentInputDesc += currentParentInput.isFavored() ? "(favored)" : "(not favored)";
         }
 
         int nonZeroCount = totalCoverage.getNonZeroCount();
         double nonZeroFraction = nonZeroCount * 100.0 / totalCoverage.size();
         int nonZeroValidCount = validCoverage.getNonZeroCount();
         double nonZeroValidFraction = nonZeroValidCount * 100.0 / validCoverage.size();
-        /*
         if (console != null) {
             if (LIBFUZZER_COMPAT_OUTPUT) {
                 console.printf("#%,d\tNEW\tcov: %,d exec/s: %,d L: %,d\n", numTrials, nonZeroValidCount, intervalExecsPerSec, currentInput.size());
@@ -658,17 +709,16 @@ public class ZestEntropicGuidance implements Guidance {
                 console.printf("Number of executions: %,d (%s)\n", numTrials,
                                maxTrials == Long.MAX_VALUE ? "no trial limit" : ("max " + maxTrials));
                 console.printf("Valid inputs:         %,d (%.2f%%)\n", numValid, numValid * 100.0 / numTrials);
-                console.printf("Cycles completed:     %d\n", cyclesCompleted);
-                console.printf("Ticket #:     %d\n", ticket); // ADDED
+                //console.printf("Cycles completed:     %d\n", cyclesCompleted);
                 console.printf("Unique failures:      %,d\n", uniqueFailures.size());
-                console.printf("Queue size:           %,d (%,d favored last cycle)\n", savedInputs.size(), numFavoredLastCycle);
+                console.printf("Queue size:           %,d \n", savedInputs.size());
                 console.printf("Current parent input: %s\n", currentParentInputDesc);
                 console.printf("Execution speed:      %,d/sec now | %,d/sec overall\n", intervalExecsPerSec, execsPerSec);
                 console.printf("Total coverage:       %,d branches (%.2f%% of map)\n", nonZeroCount, nonZeroFraction);
                 console.printf("Valid coverage:       %,d branches (%.2f%% of map)\n", nonZeroValidCount, nonZeroValidFraction);
             }
         }
-*/
+
         String plotData = String.format("%d, %d, %d, %d, %d, %d, %.2f%%, %d, %d, %d, %.2f, %d, %d, %.2f%%, %d, %d",
                 TimeUnit.MILLISECONDS.toSeconds(now.getTime()), cyclesCompleted, currentParentInputIdx,
                 numSavedInputs, 0, 0, nonZeroFraction, uniqueFailures.size(), 0, 0, intervalExecsPerSecDouble,

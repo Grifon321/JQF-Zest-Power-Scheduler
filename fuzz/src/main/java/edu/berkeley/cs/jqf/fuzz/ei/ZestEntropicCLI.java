@@ -101,6 +101,9 @@ public class ZestEntropicCLI implements Runnable{
     @Parameters(index="2", paramLabel = "TEST_METHOD", description = "fuzz function name")
     private String testMethodName;
 
+    @Parameters(index="3", paramLabel = "THRESHOLD", description = "threshold in entropic")
+    private int threshold;
+
 
     private File[] readSeedFiles() {
         if (this.inputDirectory == null) {
@@ -151,8 +154,8 @@ public class ZestEntropicCLI implements Runnable{
             Random rnd = det ? new Random(0) : new Random(); // TODO: Make seed configurable
             ZestEntropicGuidance guidance =
                 seedFiles.length > 0 ?
-                new ZestEntropicGuidance(title, duration, trials, this.outputDirectory, seedFiles, rnd) :
-                new ZestEntropicGuidance(title, duration, trials, this.outputDirectory, inputDirectory, rnd);
+                new ZestEntropicGuidance(title, duration, trials, this.outputDirectory, seedFiles, rnd, threshold) :
+                new ZestEntropicGuidance(title, duration, trials, this.outputDirectory, inputDirectory, rnd, threshold);
             guidance.setBlind(blindFuzzing);
             // Run the Junit test
             Result res = GuidedFuzzing.run(testClassName, testMethodName, loader, guidance, System.out);
